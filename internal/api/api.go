@@ -18,6 +18,7 @@ import (
 
 	"github.com/stellar/go-stellar-sdk/strkey"
 
+	"github.com/plimsoll-protocol/plimsoll-indexer/internal/changelog"
 	"github.com/plimsoll-protocol/plimsoll-indexer/internal/coverage"
 	"github.com/plimsoll-protocol/plimsoll-indexer/internal/store"
 	"github.com/plimsoll-protocol/plimsoll-indexer/internal/webhook"
@@ -58,6 +59,9 @@ type Server struct {
 	CORS              []string
 	Log               *slog.Logger
 	Now               func() time.Time
+	// Changelog is the breaking-change history served at /v1/changelog. It is
+	// loaded from the hand-maintained CHANGELOG.yaml at start-up.
+	Changelog []changelog.Entry
 }
 
 type WebhookManager interface {
@@ -76,6 +80,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/assets/{sac}/supply", s.supplyHistory)
 	mux.HandleFunc("GET /v1/assets/{sac}/reports", s.reportHistory)
 	mux.HandleFunc("GET /v1/reporters", s.reporters)
+	mux.HandleFunc("GET /v1/changelog", s.changelog)
 	mux.HandleFunc("GET /v1/breakdowns/{hash}", s.breakdown)
 	mux.HandleFunc("POST /v1/webhooks", s.createWebhook)
 	mux.HandleFunc("GET /v1/webhooks", s.listWebhooks)
@@ -344,6 +349,14 @@ func (s *Server) reporters(w http.ResponseWriter, r *http.Request) {
 		out = append(out, reporterJSON{Role: coverage.RoleName(rep.Role), Reporter: rep})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"reporters": out})
+}
+
+func (s *Server) changelog(w http.ResponseWriter, _ *http.Request) {
+	entries := s.Changelog
+	if entries == nil {
+		entries = []changelog.Entry{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"changelog": entries})
 }
 
 func (s *Server) breakdown(w http.ResponseWriter, r *http.Request) {

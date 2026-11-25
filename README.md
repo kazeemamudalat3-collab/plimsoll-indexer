@@ -65,11 +65,18 @@ The command fetches the asset's snapshot breakdown from the indexer, verifies th
 | `GET /v1/assets/{sac}/supply?limit=100` | Supply snapshot history. Each row carries `source`: `event` for a figure decoded from a contract event, with the `tx_hash` that produced it, or `chain` for one recovered from contract state after an ingestion gap, where `tx_hash` is empty. |
 | `GET /v1/assets/{sac}/reports?limit=100` | Reserve report history |
 | `GET /v1/reporters` | Active registered reporters |
+| `GET /v1/changelog` | Breaking API changes per released version, newest first |
 | `GET /v1/breakdowns/{hash}` | Exact bytes of a supply breakdown |
 | `POST /v1/webhooks`, `GET /v1/webhooks`, `DELETE /v1/webhooks/{id}` | Manage authenticated issuer TOML change subscriptions |
 
 Webhook registration and signature verification are covered in the
 [webhook guide](docs/webhooks.md).
+
+Breaking API changes (a removed field, a renamed endpoint, a newly required
+parameter) are recorded by hand in
+[internal/changelog/CHANGELOG.yaml](internal/changelog/CHANGELOG.yaml) and served
+at `GET /v1/changelog`, newest version first. The indexer refuses to start if
+that file is malformed.
 
 Coverage in the API uses the same selection and rounding rules as the contract
 (`internal/coverage`), so the API and `coverage()` on-chain agree.
