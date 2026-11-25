@@ -4,7 +4,6 @@ package api
 import (
 	"context"
 	"crypto/subtle"
-	_ "embed"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -22,9 +21,6 @@ import (
 	"github.com/plimsoll-protocol/plimsoll-indexer/internal/store"
 	"github.com/plimsoll-protocol/plimsoll-indexer/internal/webhook"
 )
-
-//go:embed openapi.yaml
-var openAPISpec []byte
 
 // Reader is what the API needs from storage.
 type Reader interface {
@@ -68,18 +64,13 @@ type WebhookManager interface {
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", s.health)
-	mux.HandleFunc("GET /openapi.yaml", s.openAPI)
-	mux.HandleFunc("GET /v1/network", s.network)
-	mux.HandleFunc("GET /v1/assets", s.listAssets)
-	mux.HandleFunc("GET /v1/assets/{sac}", s.getAsset)
-	mux.HandleFunc("GET /v1/assets/{sac}/supply", s.supplyHistory)
-	mux.HandleFunc("GET /v1/assets/{sac}/reports", s.reportHistory)
-	mux.HandleFunc("GET /v1/reporters", s.reporters)
-	mux.HandleFunc("GET /v1/breakdowns/{hash}", s.breakdown)
-	mux.HandleFunc("POST /v1/webhooks", s.createWebhook)
-	mux.HandleFunc("GET /v1/webhooks", s.listWebhooks)
-	mux.HandleFunc("DELETE /v1/webhooks/{id}", s.deleteWebhook)
+	// The route table is the only list of endpoints: serving and documentation
+	// both come from it (see routes.go).
+	for _, rt := range routes() {
+		mux.HandleFunc(rt.Method+" "+rt.Pattern, func(w http.ResponseWriter, r *http.Request) {
+			rt.Handle(s, w, r)
+		})
+	}
 	return s.cors(mux)
 }
 
