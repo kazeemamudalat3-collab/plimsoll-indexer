@@ -15,6 +15,7 @@ import (
 
 	"github.com/stellar/go-stellar-sdk/strkey"
 
+	"github.com/plimsoll-protocol/plimsoll-indexer/internal/changelog"
 	"github.com/plimsoll-protocol/plimsoll-indexer/internal/coverage"
 	"github.com/plimsoll-protocol/plimsoll-indexer/internal/store"
 	"github.com/plimsoll-protocol/plimsoll-indexer/internal/webhook"
@@ -126,10 +127,14 @@ func (f *webhookManagerFake) DeleteWebhook(_ context.Context, id int64) (bool, e
 }
 
 func server() *httptest.Server {
-	return serverWithWebhooks(nil, nil, "")
+	return newTestServer(nil, nil, "", testChangelog)
 }
 
 func serverWithWebhooks(manager WebhookManager, codec *webhook.SecretCodec, token string) *httptest.Server {
+	return newTestServer(manager, codec, token, testChangelog)
+}
+
+func newTestServer(manager WebhookManager, codec *webhook.SecretCodec, token string, entries []changelog.Entry) *httptest.Server {
 	f := &fake{
 		assets: []coverage.Asset{{SAC: sac, Code: "PUSD", Issuer: "GISS"}},
 		supply: map[string]*coverage.Supply{
@@ -151,6 +156,7 @@ func serverWithWebhooks(manager WebhookManager, codec *webhook.SecretCodec, toke
 		CORS:              []string{"*"},
 		Log:               slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Now:               func() time.Time { return now },
+		Changelog:         entries,
 	}
 	return httptest.NewServer(s.Handler())
 }

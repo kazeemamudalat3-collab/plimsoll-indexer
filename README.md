@@ -65,11 +65,39 @@ The command fetches the asset's snapshot breakdown from the indexer, verifies th
 | `GET /v1/assets/{sac}/supply?limit=100` | Supply snapshot history. Each row carries `source`: `event` for a figure decoded from a contract event, with the `tx_hash` that produced it, or `chain` for one recovered from contract state after an ingestion gap, where `tx_hash` is empty. |
 | `GET /v1/assets/{sac}/reports?limit=100` | Reserve report history |
 | `GET /v1/reporters` | Active registered reporters |
+| `GET /v1/changelog` | Breaking API changes per released version, newest first |
 | `GET /v1/breakdowns/{hash}` | Exact bytes of a supply breakdown |
 | `POST /v1/webhooks`, `GET /v1/webhooks`, `DELETE /v1/webhooks/{id}` | Manage authenticated issuer TOML change subscriptions |
 
 Webhook registration and signature verification are covered in the
 [webhook guide](docs/webhooks.md).
+
+`/v1/assets/{sac}`, `/v1/network`, `/v1/changelog` and `/v1/breakdowns/{hash}`
+return an `ETag`; send it back as `If-None-Match` and the API answers
+`304 Not Modified` with no body while the representation is unchanged.
+
+Breaking API changes (a removed field, a renamed endpoint, a newly required
+parameter) are recorded by hand in
+[internal/changelog/CHANGELOG.yaml](internal/changelog/CHANGELOG.yaml) and served
+at `GET /v1/changelog`. The indexer refuses to start if that file is malformed.
+
+### OpenAPI spec
+
+[internal/api/openapi.yaml](internal/api/openapi.yaml) is generated, not
+maintained by hand: the endpoints come from the route table in
+[internal/api/routes.go](internal/api/routes.go), which is also what the server
+registers, and the schemas come from
+[internal/api/openapi.components.yaml](internal/api/openapi.components.yaml).
+After changing a route or a schema, regenerate the golden file:
+
+```bash
+make generate
+```
+
+CI runs `make generate` and fails when the committed file differs, and
+`go test ./internal/api` checks the same thing plus that every served route is
+documented. Edit the route table or the components file and regenerate; never
+edit `openapi.yaml` directly.
 
 Coverage in the API uses the same selection and rounding rules as the contract
 (`internal/coverage`), so the API and `coverage()` on-chain agree.

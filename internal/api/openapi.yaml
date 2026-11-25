@@ -64,23 +64,21 @@ paths:
       responses:
         '200':
           description: Network discovery parameters
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/NetworkInfo'
+        '304':
+          $ref: '#/components/responses/NotModified'
   /v1/assets:
     get:
       summary: List all tracked assets with coverage and reports
       operationId: listAssets
       parameters:
-        - name: min_tier
-          in: query
-          required: false
-          description: Minimum tier level (1=transcribed, 2=issuer_signed, 3=auditor_signed)
-          schema:
-            type: integer
-            enum: [1, 2, 3]
-            default: 1
+        - $ref: '#/components/parameters/MinTier'
       responses:
         '200':
           description: List of tracked assets
@@ -96,72 +94,37 @@ paths:
                 required:
                   - assets
         '400':
-          description: Invalid request parameter
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InvalidRequest'
   /v1/assets/{sac}:
     get:
       summary: Get details, latest supply, reports, and coverage for a specific asset
       operationId: getAsset
       parameters:
-        - name: sac
-          in: path
-          required: true
-          description: Stellar Asset Contract (SAC) address
-          schema:
-            type: string
-            pattern: '^C[A-Z2-7]{55}$'
-            example: "CCHPT4TEJDPZQDSUVW3NP6A35ROGV4WEFZKT45SKWYCFZSUB7R5HIM7S"
-        - name: min_tier
-          in: query
-          required: false
-          description: Minimum tier level (1=transcribed, 2=issuer_signed, 3=auditor_signed)
-          schema:
-            type: integer
-            enum: [1, 2, 3]
-            default: 1
+        - $ref: '#/components/parameters/SAC'
+        - $ref: '#/components/parameters/MinTier'
       responses:
         '200':
           description: Asset details and current status
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Asset'
+        '304':
+          $ref: '#/components/responses/NotModified'
         '400':
-          description: Invalid request parameter
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/InvalidRequest'
         '404':
-          description: Asset not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/AssetNotFound'
   /v1/assets/{sac}/supply:
     get:
       summary: Get historical supply snapshots for an asset
       operationId: getSupplyHistory
       parameters:
-        - name: sac
-          in: path
-          required: true
-          description: Stellar Asset Contract (SAC) address
-          schema:
-            type: string
-            pattern: '^C[A-Z2-7]{55}$'
-        - name: limit
-          in: query
-          required: false
-          description: Maximum number of snapshots to return (1-1000)
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 1000
-            default: 100
+        - $ref: '#/components/parameters/SAC'
+        - $ref: '#/components/parameters/Limit'
       responses:
         '200':
           description: Supply history snapshots
@@ -183,32 +146,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Asset not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/AssetNotFound'
   /v1/assets/{sac}/reports:
     get:
       summary: Get historical reserve reports for an asset
       operationId: getReportHistory
       parameters:
-        - name: sac
-          in: path
-          required: true
-          description: Stellar Asset Contract (SAC) address
-          schema:
-            type: string
-            pattern: '^C[A-Z2-7]{55}$'
-        - name: limit
-          in: query
-          required: false
-          description: Maximum number of reports to return (1-1000)
-          schema:
-            type: integer
-            minimum: 1
-            maximum: 1000
-            default: 100
+        - $ref: '#/components/parameters/SAC'
+        - $ref: '#/components/parameters/Limit'
       responses:
         '200':
           description: Reserve report history
@@ -230,11 +175,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Asset not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/AssetNotFound'
   /v1/reporters:
     get:
       summary: List registered reporters and their roles
@@ -253,6 +194,65 @@ paths:
                       $ref: '#/components/schemas/Reporter'
                 required:
                   - reporters
+  /v1/changelog:
+    get:
+      summary: List breaking changes per released API version
+      operationId: getChangelog
+      description: >
+        Machine-readable changelog, newest version first, generated from the
+        hand-maintained CHANGELOG.yaml. Each version lists the changes that break
+        existing clients: removed fields, renamed endpoints and new required
+        parameters. Adding a field or an endpoint is not a breaking change and is not
+        listed.
+      responses:
+        '200':
+          description: Breaking changes per version, newest first
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  changelog:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ChangelogEntry'
+                required:
+                  - changelog
+        '304':
+          $ref: '#/components/responses/NotModified'
+  /v1/breakdowns/{hash}:
+    get:
+      summary: Get raw supply breakdown by hash
+      operationId: getBreakdown
+      parameters:
+        - $ref: '#/components/parameters/BreakdownHash'
+      responses:
+        '200':
+          description: Raw JSON breakdown served verbatim
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                type: object
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '400':
+          description: Hash is not 64 hex characters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Breakdown hash not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /v1/webhooks:
     post:
       summary: Register an issuer TOML change webhook
@@ -285,9 +285,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Missing or invalid administrator token
+          $ref: '#/components/responses/Unauthorized'
         '503':
-          description: Webhook management is not configured
+          $ref: '#/components/responses/WebhooksNotConfigured'
     get:
       summary: List registered webhooks without their secrets
       operationId: listWebhooks
@@ -307,9 +307,9 @@ paths:
                       $ref: '#/components/schemas/Webhook'
                 required: [webhooks]
         '401':
-          description: Missing or invalid administrator token
+          $ref: '#/components/responses/Unauthorized'
         '503':
-          description: Webhook management is not configured
+          $ref: '#/components/responses/WebhooksNotConfigured'
   /v1/webhooks/{id}:
     delete:
       summary: Delete a registered webhook
@@ -317,57 +317,101 @@ paths:
       security:
         - WebhookAdminAuth: []
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-            minimum: 1
+        - $ref: '#/components/parameters/WebhookID'
       responses:
         '204':
           description: Webhook deleted
         '400':
           description: Invalid webhook ID
         '401':
-          description: Missing or invalid administrator token
+          $ref: '#/components/responses/Unauthorized'
         '404':
           description: Webhook not found
-  /v1/breakdowns/{hash}:
-    get:
-      summary: Get raw supply breakdown by hash
-      operationId: getBreakdown
-      parameters:
-        - name: hash
-          in: path
-          required: true
-          description: SHA-256 breakdown hash, 64 hex characters
-          schema:
-            type: string
-            pattern: '^[0-9a-fA-F]{64}$'
-      responses:
-        '200':
-          description: Raw JSON breakdown served verbatim
-          content:
-            application/json:
-              schema:
-                type: object
-        '400':
-          description: Hash is not 64 hex characters
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-        '404':
-          description: Breakdown hash not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
 components:
+  # Hand-maintained part of the generated OpenAPI document: schemas, shared
+  # parameters, shared responses and the auth scheme. Endpoints are not listed
+  # here; they come from the route table in routes.go. Run `make generate` after
+  # editing this file.
   securitySchemes:
     WebhookAdminAuth:
       type: http
       scheme: bearer
+  parameters:
+    SAC:
+      name: sac
+      in: path
+      required: true
+      description: Stellar Asset Contract (SAC) address
+      schema:
+        type: string
+        pattern: '^C[A-Z2-7]{55}$'
+        example: "CCHPT4TEJDPZQDSUVW3NP6A35ROGV4WEFZKT45SKWYCFZSUB7R5HIM7S"
+    MinTier:
+      name: min_tier
+      in: query
+      required: false
+      description: Minimum tier level (1=transcribed, 2=issuer_signed, 3=auditor_signed)
+      schema:
+        type: integer
+        enum: [1, 2, 3]
+        default: 1
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of rows to return (1-1000)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 100
+    BreakdownHash:
+      name: hash
+      in: path
+      required: true
+      description: SHA-256 breakdown hash, 64 hex characters
+      schema:
+        type: string
+        pattern: '^[0-9a-fA-F]{64}$'
+    WebhookID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  headers:
+    ETag:
+      description: >
+        Validator for the response body. Send it back in If-None-Match and the
+        server answers 304 Not Modified while the body is unchanged.
+      schema:
+        type: string
+        example: '"3f7a9c0d8b1e4a6c2d5f8e0b3a7c9d1e"'
+  responses:
+    InvalidRequest:
+      description: Invalid request parameter
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    AssetNotFound:
+      description: Asset not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing or invalid administrator token
+    WebhooksNotConfigured:
+      description: Webhook management is not configured
+    NotModified:
+      description: >
+        The client's cached copy is still current: the If-None-Match validator
+        matched the current representation. The body is empty.
+      headers:
+        ETag:
+          $ref: '#/components/headers/ETag'
   schemas:
     NetworkInfo:
       type: object
@@ -415,6 +459,13 @@ components:
         tx_hash:
           type: string
           example: "tx123..."
+        source:
+          type: string
+          enum: [event, chain]
+          description: >
+            event for a figure decoded from a contract event, which carries the
+            transaction that produced it; chain for one recovered from contract
+            state after an ingestion gap, where tx_hash is empty.
       required:
         - amount
         - ledger
@@ -452,6 +503,13 @@ components:
         tx_hash:
           type: string
           example: "tx456..."
+        source:
+          type: string
+          enum: [event, chain]
+        doc_check:
+          type: string
+          enum: [match, mismatch, unreachable]
+          description: Result of the last document hash verification; absent until checked.
       required:
         - tier
         - amount
@@ -579,6 +637,41 @@ components:
         - address
         - name
         - updated_at
+    ChangelogEntry:
+      type: object
+      properties:
+        version:
+          type: string
+          example: "1.2.0"
+        date:
+          type: string
+          format: date
+          example: "2026-12-01"
+        changes:
+          type: array
+          description: Breaking changes introduced in this version; empty when there were none.
+          items:
+            $ref: '#/components/schemas/ChangelogChange'
+      required:
+        - version
+        - date
+        - changes
+    ChangelogChange:
+      type: object
+      properties:
+        kind:
+          type: string
+          description: >
+            What broke: removed_field, renamed_endpoint, new_required_param, and
+            similarly named breakages.
+          example: "removed_field"
+        detail:
+          type: string
+          description: What a client must change.
+          example: "coverage.ratio was removed; compute it from bps."
+      required:
+        - kind
+        - detail
     Webhook:
       type: object
       properties:
