@@ -71,6 +71,10 @@ The command fetches the asset's snapshot breakdown from the indexer, verifies th
 Webhook registration and signature verification are covered in the
 [webhook guide](docs/webhooks.md).
 
+`/v1/assets/{sac}`, `/v1/network` and `/v1/breakdowns/{hash}` return an `ETag`;
+send it back as `If-None-Match` and the API answers `304 Not Modified` with no
+body while the representation is unchanged.
+
 Coverage in the API uses the same selection and rounding rules as the contract
 (`internal/coverage`), so the API and `coverage()` on-chain agree.
 

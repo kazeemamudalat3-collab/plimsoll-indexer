@@ -3,6 +3,7 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
 	"crypto/subtle"
 	_ "embed"
 	"encoding/hex"
@@ -208,8 +209,8 @@ func (s *Server) openAPI(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write(openAPISpec)
 }
 
-func (s *Server) network(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, s.Network)
+func (s *Server) network(w http.ResponseWriter, r *http.Request) {
+	s.writeConditionalJSON(w, r, http.StatusOK, s.Network)
 }
 
 func (s *Server) listAssets(w http.ResponseWriter, r *http.Request) {
@@ -257,7 +258,7 @@ func (s *Server) getAsset(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, aj)
+	s.writeConditionalJSON(w, r, http.StatusOK, aj)
 }
 
 func (s *Server) assemble(ctx context.Context, a coverage.Asset, minTier uint32) (assetJSON, error) {
@@ -362,9 +363,7 @@ func (s *Server) breakdown(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Served byte-for-byte so sha256(body) equals the on-chain hash.
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(body)
+	s.writeConditional(w, r, http.StatusOK, "application/json", body)
 }
 
 func (s *Server) createWebhook(w http.ResponseWriter, r *http.Request) {
@@ -563,6 +562,50 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// writeConditionalJSON writes v with an ETag and answers 304 Not Modified when
+// the request already holds this representation.
+func (s *Server) writeConditionalJSON(w http.ResponseWriter, r *http.Request, status int, v any) {
+	body, err := json.Marshal(v)
+	if err != nil {
+		s.fail(w, err)
+		return
+	}
+	// json.Encoder, which writeJSON uses, terminates every value with a newline;
+	// keep it so conditional and unconditional responses are byte-identical.
+	s.writeConditional(w, r, status, "application/json", append(body, '\n'))
+}
+
+// writeConditional writes body with an ETag derived from its hash and answers
+// 304 Not Modified, without a body, when If-None-Match names that ETag. The
+// validator is the hash of the exact bytes served, so it changes whenever the
+// representation does and never when it does not.
+func (s *Server) writeConditional(w http.ResponseWriter, r *http.Request, status int, contentType string, body []byte) {
+	sum := sha256.Sum256(body)
+	etag := `"` + hex.EncodeToString(sum[:]) + `"`
+	w.Header().Set("ETag", etag)
+	if etagMatches(r.Header.Get("If-None-Match"), etag) {
+		w.WriteHeader(http.StatusNotModified)
+		return
+	}
+	w.Header().Set("Content-Type", contentType)
+	w.WriteHeader(status)
+	_, _ = w.Write(body)
+}
+
+// etagMatches reports whether an If-None-Match header names etag. The
+// comparison is the weak one RFC 9110 requires for If-None-Match: a W/ prefix
+// and surrounding whitespace are ignored, the header may list several tags, and
+// "*" matches any current representation.
+func etagMatches(header, etag string) bool {
+	for _, candidate := range strings.Split(header, ",") {
+		candidate = strings.TrimSpace(candidate)
+		if candidate == "*" || strings.TrimPrefix(candidate, "W/") == etag {
+			return true
+		}
+	}
+	return false
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
